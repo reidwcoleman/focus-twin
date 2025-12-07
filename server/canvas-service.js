@@ -111,37 +111,47 @@ class CanvasService {
 
   async getCourseSchedule(canvasCourseId) {
     try {
-      const sections = await this.makeRequest(`/courses/${canvasCourseId}/sections?include[]=students&per_page=100`);
+      // Get calendar events for this course
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + 14); // Next 2 weeks
 
-      const schedules = [];
+      const events = await this.makeRequest(
+        `/courses/${canvasCourseId}/calendar_events?start_date=${startDate.toISOString()}&end_date=${endDate.toISOString()}&per_page=100`
+      );
 
-      for (const section of sections) {
-        // Check if this section has meeting times
-        if (section.course_section_meeting_times && section.course_section_meeting_times.length > 0) {
-          for (const meeting of section.course_section_meeting_times) {
-            // Canvas days: "MWF", "TR", etc.
-            // Convert to our day_of_week format (0=Sunday, 1=Monday, etc.)
-            const dayMap = {
-              'Su': 0, 'M': 1, 'T': 2, 'W': 3, 'R': 4, 'F': 5, 'S': 6
-            };
+      // Track unique schedule patterns (to avoid duplicates)
+      const scheduleMap = new Map();
 
-            // Parse the days string (e.g., "MWF" -> [1, 3, 5])
-            const days = this.parseDays(meeting.days, dayMap);
+      for (const event of events) {
+        // Only process events with start and end times
+        if (!event.start_at || !event.end_at) continue;
 
-            // Create a schedule entry for each day
-            for (const day of days) {
-              schedules.push({
-                day_of_week: day,
-                start_time: meeting.start_time || '09:00', // Format: "HH:MM"
-                end_time: meeting.end_time || '10:00',
-                location: meeting.location || null
-              });
-            }
-          }
+        const startDateTime = new Date(event.start_at);
+        const endDateTime = new Date(event.end_at);
+
+        // Extract day of week (0=Sunday, 1=Monday, etc.)
+        const dayOfWeek = startDateTime.getDay();
+
+        // Format times as HH:MM
+        const startTime = startDateTime.toTimeString().substring(0, 5);
+        const endTime = endDateTime.toTimeString().substring(0, 5);
+
+        // Create unique key for this schedule pattern
+        const key = `${dayOfWeek}-${startTime}-${endTime}`;
+
+        // Only add if we haven't seen this pattern yet
+        if (!scheduleMap.has(key)) {
+          scheduleMap.set(key, {
+            day_of_week: dayOfWeek,
+            start_time: startTime,
+            end_time: endTime,
+            location: event.location_name || event.location_address || null
+          });
         }
       }
 
-      return schedules;
+      return Array.from(scheduleMap.values());
     } catch (error) {
       console.error(`Failed to fetch schedule for course ${canvasCourseId}:`, error);
       return [];
