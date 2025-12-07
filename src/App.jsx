@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
-import { LayoutDashboard, Calendar, BookOpen, GraduationCap, CheckSquare, StickyNote, Trophy, Settings as SettingsIcon } from 'lucide-react'
+import { LayoutDashboard, Calendar, BookOpen, GraduationCap, CheckSquare, StickyNote, Trophy, Settings as SettingsIcon, Sparkles } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import Schedule from './pages/Schedule'
+import ScheduleGenerator from './pages/ScheduleGenerator'
 import Assignments from './pages/Assignments'
 import Grades from './pages/Grades'
 import Tasks from './pages/Tasks'
@@ -25,6 +26,7 @@ function App() {
           <nav className="flex-1 p-4 space-y-1">
             <NavItem to="/" icon={<LayoutDashboard size={20} />} label="Dashboard" />
             <NavItem to="/schedule" icon={<Calendar size={20} />} label="Schedule" />
+            <NavItem to="/schedule-generator" icon={<Sparkles size={20} />} label="AI Schedule" />
             <NavItem to="/assignments" icon={<BookOpen size={20} />} label="Assignments" />
             <NavItem to="/grades" icon={<Trophy size={20} />} label="Grades" />
             <NavItem to="/tasks" icon={<CheckSquare size={20} />} label="Tasks" />
@@ -48,6 +50,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/schedule" element={<Schedule />} />
+            <Route path="/schedule-generator" element={<ScheduleGenerator />} />
             <Route path="/assignments" element={<Assignments />} />
             <Route path="/grades" element={<Grades />} />
             <Route path="/tasks" element={<Tasks />} />

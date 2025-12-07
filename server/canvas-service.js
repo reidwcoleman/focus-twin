@@ -65,12 +65,17 @@ class CanvasService {
   async getCalendarEvents() {
     try {
       const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 1); // Start from 1 month ago to catch recent past events
       const endDate = new Date();
-      endDate.setMonth(endDate.getMonth() + 6); // Get 6 months of events
+      endDate.setMonth(endDate.getMonth() + 12); // Get 12 months of future events
+
+      console.log(`Fetching calendar events from ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
       const events = await this.makeRequest(
-        `/calendar_events?all_events=true&start_date=${startDate.toISOString()}&end_date=${endDate.toISOString()}&per_page=100`
+        `/calendar_events?all_events=true&start_date=${startDate.toISOString()}&end_date=${endDate.toISOString()}&per_page=500`
       );
+
+      console.log(`Canvas returned ${events.length} calendar events`);
 
       return events.map(event => ({
         canvas_id: event.id,

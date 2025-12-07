@@ -25,18 +25,25 @@ export default function Schedule() {
   }, [currentDate, view])
 
   const fetchData = async () => {
-    const month = currentDate.getMonth() + 1
-    const year = currentDate.getFullYear()
-
     const [scheduleRes, coursesRes, eventsRes] = await Promise.all([
       fetch('/api/schedule'),
       fetch('/api/courses'),
-      fetch(`/api/calendar-events?month=${month}&year=${year}`)
+      fetch('/api/calendar-events')
     ])
 
     setSchedule(await scheduleRes.json())
     setCourses(await coursesRes.json())
-    setCalendarEvents(await eventsRes.json())
+    const allEvents = await eventsRes.json()
+
+    // Filter events for current month
+    const month = currentDate.getMonth()
+    const year = currentDate.getFullYear()
+    const filteredEvents = allEvents.filter(event => {
+      const eventDate = parseISO(event.start_time)
+      return eventDate.getMonth() === month && eventDate.getFullYear() === year
+    })
+
+    setCalendarEvents(filteredEvents)
   }
 
   const handleSubmit = async (e) => {

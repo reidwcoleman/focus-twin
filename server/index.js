@@ -401,22 +401,8 @@ app.post('/api/canvas/sync', async (req, res) => {
       }
     }
 
-    // Sync schedules for each course
-    let totalSchedules = 0;
-    for (const course of syncedCourses) {
-      const schedules = await canvas.getCourseSchedule(course.canvas_id);
-
-      // Delete existing schedules for this course
-      db.prepare('DELETE FROM schedule WHERE course_id = ?').run(course.id);
-
-      // Insert new schedules
-      for (const schedule of schedules) {
-        db.prepare(
-          'INSERT INTO schedule (course_id, day_of_week, start_time, end_time, location) VALUES (?, ?, ?, ?, ?)'
-        ).run(course.id, schedule.day_of_week, schedule.start_time, schedule.end_time, schedule.location);
-        totalSchedules++;
-      }
-    }
+    // Note: We no longer sync per-course schedules as Canvas API doesn't support it well
+    // Instead, we rely on calendar_events which contains all class meetings
 
     // Sync ALL calendar events
     const calendarEvents = await canvas.getCalendarEvents();
@@ -460,7 +446,6 @@ app.post('/api/canvas/sync', async (req, res) => {
         courses: syncedCourses.length,
         newAssignments: totalAssignments,
         newGrades: totalGrades,
-        schedules: totalSchedules,
         calendarEvents: totalEvents
       }
     });
@@ -479,6 +464,22 @@ app.get('/api/canvas/sync-status', (req, res) => {
       db.prepare('SELECT value FROM settings WHERE key = ?').get('canvas_token')
     )
   });
+});
+
+// ===== CALENDAR EVENTS =====
+app.get('/api/calendar-events', (req, res) => {
+  const events = db.prepare(`
+    SELECT ce.*, c.name as course_name, c.code as course_code, c.color
+    FROM calendar_events ce
+    LEFT JOIN courses c ON ce.course_id = c.id
+    ORDER BY ce.start_time
+  `).all();
+  res.json(events);
+});
+
+app.delete('/api/calendar-events/:id', (req, res) => {
+  db.prepare('DELETE FROM calendar_events WHERE id = ? AND canvas_id IS NULL').run(req.params.id);
+  res.json({ success: true });
 });
 
 // ===== PERSONAL ACTIVITIES =====

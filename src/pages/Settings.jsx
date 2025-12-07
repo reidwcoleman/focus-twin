@@ -296,7 +296,7 @@ export default function Settings() {
                     </p>
                     {syncResult.success && syncResult.stats && (
                       <p className="text-sm text-green-700 mt-1">
-                        Synced {syncResult.stats.courses} courses, {syncResult.stats.newAssignments} new assignments, {syncResult.stats.newGrades} new grades, {syncResult.stats.schedules} class times, and {syncResult.stats.calendarEvents} calendar events
+                        Synced {syncResult.stats.courses} courses, {syncResult.stats.newAssignments} new assignments, {syncResult.stats.newGrades} new grades, and {syncResult.stats.calendarEvents} calendar events
                       </p>
                     )}
                   </div>
@@ -341,9 +341,7 @@ export default function Settings() {
                 <br />
                 • All active courses with their instructors
                 <br />
-                • Class schedules with meeting times and locations
-                <br />
-                • All calendar events (6 months forward)
+                • All calendar events including class meetings (6 months forward)
                 <br />
                 • All assignments with due dates
                 <br />
