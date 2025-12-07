@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
-import { LayoutDashboard, Calendar, BookOpen, GraduationCap, CheckSquare, StickyNote, Trophy } from 'lucide-react'
+import { LayoutDashboard, Calendar, BookOpen, GraduationCap, CheckSquare, StickyNote, Trophy, Settings as SettingsIcon } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import Schedule from './pages/Schedule'
 import Assignments from './pages/Assignments'
@@ -7,6 +7,7 @@ import Grades from './pages/Grades'
 import Tasks from './pages/Tasks'
 import Notes from './pages/Notes'
 import Courses from './pages/Courses'
+import Settings from './pages/Settings'
 
 function App() {
   return (
@@ -29,6 +30,9 @@ function App() {
             <NavItem to="/tasks" icon={<CheckSquare size={20} />} label="Tasks" />
             <NavItem to="/notes" icon={<StickyNote size={20} />} label="Notes" />
             <NavItem to="/courses" icon={<GraduationCap size={20} />} label="Courses" />
+            <div className="pt-4 mt-4 border-t border-gray-200">
+              <NavItem to="/settings" icon={<SettingsIcon size={20} />} label="Settings" />
+            </div>
           </nav>
 
           <div className="p-4 border-t border-gray-200">
@@ -49,6 +53,7 @@ function App() {
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/notes" element={<Notes />} />
             <Route path="/courses" element={<Courses />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
       </div>

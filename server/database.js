@@ -15,6 +15,7 @@ db.exec(`
     code TEXT,
     instructor TEXT,
     color TEXT DEFAULT '#6366f1',
+    canvas_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -37,6 +38,7 @@ db.exec(`
     priority TEXT DEFAULT 'medium',
     status TEXT DEFAULT 'pending',
     estimated_hours REAL,
+    canvas_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     completed_at DATETIME,
     FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
@@ -99,6 +101,13 @@ db.exec(`
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE SET NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT UNIQUE NOT NULL,
+    value TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 

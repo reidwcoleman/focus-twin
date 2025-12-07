@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import db from './database.js';
+import CanvasService from './canvas-service.js';
 
 const app = express();
 const PORT = 5000;
@@ -241,6 +242,129 @@ app.get('/api/dashboard/stats', (req, res) => {
     totalCourses: db.prepare('SELECT COUNT(*) as count FROM courses').get().count,
   };
   res.json(stats);
+});
+
+// ===== SETTINGS =====
+app.get('/api/settings/:key', (req, res) => {
+  const setting = db.prepare('SELECT * FROM settings WHERE key = ?').get(req.params.key);
+  res.json(setting || null);
+});
+
+app.post('/api/settings', (req, res) => {
+  const { key, value } = req.body;
+  db.prepare(`
+    INSERT INTO settings (key, value) VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
+  `).run(key, value, value);
+  res.json({ success: true });
+});
+
+// ===== CANVAS SYNC =====
+app.post('/api/canvas/test', async (req, res) => {
+  const { canvasUrl, accessToken } = req.body;
+
+  try {
+    const canvas = new CanvasService(canvasUrl, accessToken);
+    const result = await canvas.testConnection();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/canvas/sync', async (req, res) => {
+  try {
+    // Get Canvas credentials from settings
+    const canvasUrlSetting = db.prepare('SELECT value FROM settings WHERE key = ?').get('canvas_url');
+    const accessTokenSetting = db.prepare('SELECT value FROM settings WHERE key = ?').get('canvas_token');
+
+    if (!canvasUrlSetting || !accessTokenSetting) {
+      return res.status(400).json({ success: false, error: 'Canvas not configured' });
+    }
+
+    const canvas = new CanvasService(canvasUrlSetting.value, accessTokenSetting.value);
+
+    // Sync courses
+    const canvasCourses = await canvas.getCourses();
+    const syncedCourses = [];
+
+    for (const course of canvasCourses) {
+      // Check if course already exists
+      const existing = db.prepare('SELECT * FROM courses WHERE canvas_id = ?').get(course.canvas_id);
+
+      if (existing) {
+        // Update existing course
+        db.prepare(
+          'UPDATE courses SET name = ?, code = ?, instructor = ? WHERE canvas_id = ?'
+        ).run(course.name, course.code, course.instructor, course.canvas_id);
+        syncedCourses.push({ ...existing, ...course });
+      } else {
+        // Insert new course with random color
+        const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#06b6d4'];
+        const color = colors[Math.floor(Math.random() * colors.length)];
+
+        const result = db.prepare(
+          'INSERT INTO courses (name, code, instructor, color, canvas_id) VALUES (?, ?, ?, ?, ?)'
+        ).run(course.name, course.code, course.instructor, color, course.canvas_id);
+
+        syncedCourses.push({ id: result.lastInsertRowid, ...course, color });
+      }
+    }
+
+    // Sync assignments for each course
+    let totalAssignments = 0;
+    for (const course of syncedCourses) {
+      const assignments = await canvas.getAssignments(course.canvas_id);
+
+      for (const assignment of assignments) {
+        if (!assignment.due_date) continue; // Skip assignments without due dates
+
+        // Check if assignment already exists
+        const existing = db.prepare('SELECT * FROM assignments WHERE canvas_id = ?').get(assignment.canvas_id);
+
+        if (existing) {
+          // Update existing assignment
+          db.prepare(
+            'UPDATE assignments SET title = ?, description = ?, due_date = ?, status = ? WHERE canvas_id = ?'
+          ).run(assignment.title, assignment.description, assignment.due_date, assignment.status, assignment.canvas_id);
+        } else {
+          // Insert new assignment
+          db.prepare(
+            'INSERT INTO assignments (course_id, title, description, due_date, priority, status, canvas_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+          ).run(course.id, assignment.title, assignment.description, assignment.due_date, 'medium', assignment.status, assignment.canvas_id);
+          totalAssignments++;
+        }
+      }
+    }
+
+    // Update last sync time
+    db.prepare(`
+      INSERT INTO settings (key, value) VALUES ('last_sync', ?)
+      ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
+    `).run(new Date().toISOString(), new Date().toISOString());
+
+    res.json({
+      success: true,
+      stats: {
+        courses: syncedCourses.length,
+        newAssignments: totalAssignments
+      }
+    });
+  } catch (error) {
+    console.error('Canvas sync error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/canvas/sync-status', (req, res) => {
+  const lastSync = db.prepare('SELECT value FROM settings WHERE key = ?').get('last_sync');
+  res.json({
+    lastSync: lastSync ? lastSync.value : null,
+    configured: !!(
+      db.prepare('SELECT value FROM settings WHERE key = ?').get('canvas_url') &&
+      db.prepare('SELECT value FROM settings WHERE key = ?').get('canvas_token')
+    )
+  });
 });
 
 app.listen(PORT, () => {
