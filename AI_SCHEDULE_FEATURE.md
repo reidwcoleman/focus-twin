@@ -12,7 +12,7 @@ The Focus Twin app now includes an **AI-powered schedule generation system** tha
 - Automatically categorizes imported events (fitness, work, personal, etc.)
 - Filters recurring weekly events for schedule planning
 
-### 2. AI Activity Input
+### 2. AI Activity Input with Interactive Review
 - **Natural Language Processing**: Describe your weekly activities in plain English
 - The AI understands patterns like:
   - "I have gym on Monday and Wednesday at 6pm for 1 hour"
@@ -24,6 +24,12 @@ The Focus Twin app now includes an **AI-powered schedule generation system** tha
   - Start/end times (supports 12-hour and 24-hour formats)
   - Duration
   - Category (fitness, work, study, extracurricular, etc.)
+- **Interactive Confirmation**: After AI parsing, you can:
+  - Review all parsed activities
+  - Edit any details (name, day, time, category)
+  - Delete unwanted activities
+  - Add new activities manually
+  - Confirm before saving
 
 ### 3. Intelligent Schedule Generation
 - **Automatic Study Time Calculation**:
@@ -41,10 +47,15 @@ The Focus Twin app now includes an **AI-powered schedule generation system** tha
   - Highlights generated study blocks
   - Color-coded by course/activity type
 
-### 4. Study Hours Dashboard
+### 4. Study Hours Dashboard with Clear Time Slots
 - **Recommended Study Hours**: Based on course load, assignments, and exams
 - **Allocated Study Hours**: How much study time was fit into your schedule
 - **Deficit Indicator**: Shows if you need to find more time or adjust activities
+- **Study Block Summary**: Dedicated section showing exactly when to study:
+  - Each study session with course name, day, and specific time slots
+  - Duration clearly displayed (e.g., "2.5 hour session")
+  - Color-coded by course
+  - Prominent visual indicators (📚) for easy identification
 
 ## How to Use
 

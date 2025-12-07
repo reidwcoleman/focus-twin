@@ -21,7 +21,23 @@ class CanvasService {
         throw new Error(`Canvas API error: ${response.status} ${response.statusText}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+
+      // Check for pagination (Link header)
+      const linkHeader = response.headers.get('Link');
+      if (linkHeader && linkHeader.includes('rel="next"')) {
+        // Extract next page URL
+        const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+        if (nextMatch) {
+          const nextUrl = nextMatch[1];
+          // Make the URL relative by extracting just the path and query
+          const nextEndpoint = nextUrl.replace(this.baseUrl + '/api/v1', '');
+          const nextData = await this.makeRequest(nextEndpoint);
+          return [...data, ...nextData];
+        }
+      }
+
+      return data;
     } catch (error) {
       console.error('Canvas API request failed:', error);
       throw error;
@@ -72,12 +88,24 @@ class CanvasService {
       console.log(`Fetching calendar events from ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
       const events = await this.makeRequest(
-        `/calendar_events?all_events=true&start_date=${startDate.toISOString()}&end_date=${endDate.toISOString()}&per_page=500`
+        `/calendar_events?all_events=true&start_date=${startDate.toISOString()}&end_date=${endDate.toISOString()}&per_page=100`
       );
 
-      console.log(`Canvas returned ${events.length} calendar events`);
+      console.log(`Canvas returned ${events.length} total calendar events`);
 
-      return events.map(event => ({
+      // Log event types
+      const eventTypes = {};
+      events.forEach(e => {
+        const type = e.type || 'unknown';
+        eventTypes[type] = (eventTypes[type] || 0) + 1;
+      });
+      console.log('Event types:', eventTypes);
+
+      // Count events with/without start times
+      const withStartTime = events.filter(e => e.start_at).length;
+      console.log(`Events with start_time: ${withStartTime} / ${events.length}`);
+
+      const mappedEvents = events.map(event => ({
         canvas_id: event.id,
         title: event.title,
         description: event.description,
@@ -89,6 +117,9 @@ class CanvasService {
           ? parseInt(event.context_code.replace('course_', ''))
           : null
       }));
+
+      console.log(`Mapped ${mappedEvents.length} events for sync`);
+      return mappedEvents;
     } catch (error) {
       console.error('Failed to fetch calendar events:', error);
       return [];

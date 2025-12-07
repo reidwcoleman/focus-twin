@@ -407,6 +407,9 @@ app.post('/api/canvas/sync', async (req, res) => {
     // Sync ALL calendar events
     const calendarEvents = await canvas.getCalendarEvents();
     let totalEvents = 0;
+    let updatedEvents = 0;
+
+    console.log(`Processing ${calendarEvents.length} calendar events from Canvas...`);
 
     for (const event of calendarEvents) {
       if (!event.start_time) continue; // Skip events without start time
@@ -424,6 +427,7 @@ app.post('/api/canvas/sync', async (req, res) => {
           SET title = ?, description = ?, start_time = ?, end_time = ?, location = ?, event_type = ?, course_id = ?
           WHERE canvas_id = ?
         `).run(event.title, event.description, event.start_time, event.end_time, event.location, event.event_type, course?.id || null, event.canvas_id);
+        updatedEvents++;
       } else {
         // Insert new event
         db.prepare(`
@@ -433,6 +437,8 @@ app.post('/api/canvas/sync', async (req, res) => {
         totalEvents++;
       }
     }
+
+    console.log(`Calendar sync complete: ${totalEvents} new events, ${updatedEvents} updated events`);
 
     // Update last sync time
     db.prepare(`
