@@ -259,6 +259,45 @@ app.post('/api/settings', (req, res) => {
   res.json({ success: true });
 });
 
+// ===== CALENDAR EVENTS =====
+app.get('/api/calendar-events', (req, res) => {
+  const { month, year } = req.query;
+
+  let query = `
+    SELECT ce.*, c.name as course_name, c.code as course_code, c.color
+    FROM calendar_events ce
+    LEFT JOIN courses c ON ce.course_id = c.id
+  `;
+
+  const params = [];
+
+  if (month && year) {
+    // Filter by month and year
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
+    query += ` WHERE ce.start_time >= ? AND ce.start_time <= ?`;
+    params.push(startDate.toISOString(), endDate.toISOString());
+  }
+
+  query += ` ORDER BY ce.start_time`;
+
+  const events = db.prepare(query).all(...params);
+  res.json(events);
+});
+
+app.post('/api/calendar-events', (req, res) => {
+  const { course_id, title, description, start_time, end_time, location, event_type } = req.body;
+  const result = db.prepare(
+    'INSERT INTO calendar_events (course_id, title, description, start_time, end_time, location, event_type) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(course_id, title, description, start_time, end_time, location, event_type || 'event');
+  res.json({ id: result.lastInsertRowid });
+});
+
+app.delete('/api/calendar-events/:id', (req, res) => {
+  db.prepare('DELETE FROM calendar_events WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
 // ===== CANVAS SYNC =====
 app.post('/api/canvas/test', async (req, res) => {
   const { canvasUrl, accessToken } = req.body;
@@ -376,6 +415,36 @@ app.post('/api/canvas/sync', async (req, res) => {
       }
     }
 
+    // Sync ALL calendar events
+    const calendarEvents = await canvas.getCalendarEvents();
+    let totalEvents = 0;
+
+    for (const event of calendarEvents) {
+      if (!event.start_time) continue; // Skip events without start time
+
+      // Find matching course by canvas_id
+      const course = syncedCourses.find(c => c.canvas_id === event.canvas_course_id);
+
+      // Check if event already exists
+      const existing = db.prepare('SELECT * FROM calendar_events WHERE canvas_id = ?').get(event.canvas_id);
+
+      if (existing) {
+        // Update existing event
+        db.prepare(`
+          UPDATE calendar_events
+          SET title = ?, description = ?, start_time = ?, end_time = ?, location = ?, event_type = ?, course_id = ?
+          WHERE canvas_id = ?
+        `).run(event.title, event.description, event.start_time, event.end_time, event.location, event.event_type, course?.id || null, event.canvas_id);
+      } else {
+        // Insert new event
+        db.prepare(`
+          INSERT INTO calendar_events (course_id, title, description, start_time, end_time, location, event_type, canvas_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(course?.id || null, event.title, event.description, event.start_time, event.end_time, event.location, event.event_type, event.canvas_id);
+        totalEvents++;
+      }
+    }
+
     // Update last sync time
     db.prepare(`
       INSERT INTO settings (key, value) VALUES ('last_sync', ?)
@@ -388,7 +457,8 @@ app.post('/api/canvas/sync', async (req, res) => {
         courses: syncedCourses.length,
         newAssignments: totalAssignments,
         newGrades: totalGrades,
-        schedules: totalSchedules
+        schedules: totalSchedules,
+        calendarEvents: totalEvents
       }
     });
   } catch (error) {

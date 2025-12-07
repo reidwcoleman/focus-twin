@@ -66,18 +66,20 @@ class CanvasService {
     try {
       const startDate = new Date();
       const endDate = new Date();
-      endDate.setMonth(endDate.getMonth() + 3); // Get 3 months of events
+      endDate.setMonth(endDate.getMonth() + 6); // Get 6 months of events
 
       const events = await this.makeRequest(
-        `/calendar_events?start_date=${startDate.toISOString()}&end_date=${endDate.toISOString()}&per_page=100`
+        `/calendar_events?all_events=true&start_date=${startDate.toISOString()}&end_date=${endDate.toISOString()}&per_page=100`
       );
 
       return events.map(event => ({
+        canvas_id: event.id,
         title: event.title,
         description: event.description,
         start_time: event.start_at,
         end_time: event.end_at,
-        location: event.location_name,
+        location: event.location_name || event.location_address,
+        event_type: event.type || 'event',
         canvas_course_id: event.context_code?.includes('course_')
           ? parseInt(event.context_code.replace('course_', ''))
           : null

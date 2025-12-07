@@ -109,6 +109,54 @@ db.exec(`
     value TEXT NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS personal_activities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    day_of_week INTEGER,
+    start_time TEXT,
+    end_time TEXT,
+    recurrence TEXT DEFAULT 'weekly',
+    category TEXT DEFAULT 'personal',
+    is_flexible BOOLEAN DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS generated_schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    week_start_date DATE NOT NULL,
+    schedule_data TEXT NOT NULL,
+    study_hours_recommended REAL,
+    study_hours_available REAL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS study_blocks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL,
+    day_of_week INTEGER NOT NULL,
+    start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL,
+    duration_hours REAL NOT NULL,
+    generated_schedule_id INTEGER,
+    FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+    FOREIGN KEY (generated_schedule_id) REFERENCES generated_schedules(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS calendar_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER,
+    title TEXT NOT NULL,
+    description TEXT,
+    start_time DATETIME NOT NULL,
+    end_time DATETIME,
+    location TEXT,
+    event_type TEXT DEFAULT 'event',
+    canvas_id INTEGER UNIQUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE SET NULL
+  );
 `);
 
 export default db;
