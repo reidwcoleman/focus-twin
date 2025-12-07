@@ -2,6 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import db from './database.js';
 import CanvasService from './canvas-service.js';
+import CalendarImportService from './calendar-import-service.js';
+import AIActivityService from './ai-activity-service.js';
+import ScheduleGeneratorService from './schedule-generator-service.js';
 
 const app = express();
 const PORT = 5000;
@@ -475,6 +478,161 @@ app.get('/api/canvas/sync-status', (req, res) => {
       db.prepare('SELECT value FROM settings WHERE key = ?').get('canvas_url') &&
       db.prepare('SELECT value FROM settings WHERE key = ?').get('canvas_token')
     )
+  });
+});
+
+// ===== PERSONAL ACTIVITIES =====
+app.get('/api/activities', (req, res) => {
+  const activities = db.prepare('SELECT * FROM personal_activities ORDER BY day_of_week, start_time').all();
+  res.json(activities);
+});
+
+app.post('/api/activities', (req, res) => {
+  const { title, description, day_of_week, start_time, end_time, recurrence, category, is_flexible } = req.body;
+  const result = db.prepare(`
+    INSERT INTO personal_activities (title, description, day_of_week, start_time, end_time, recurrence, category, is_flexible)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(title, description, day_of_week, start_time, end_time, recurrence || 'weekly', category || 'personal', is_flexible ? 1 : 0);
+  res.json({ id: result.lastInsertRowid, title, description, day_of_week, start_time, end_time, recurrence, category, is_flexible });
+});
+
+app.delete('/api/activities/:id', (req, res) => {
+  db.prepare('DELETE FROM personal_activities WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ===== CALENDAR IMPORT =====
+app.post('/api/calendar/import', async (req, res) => {
+  try {
+    const { icalData, url } = req.body;
+    const calendarService = new CalendarImportService();
+
+    let events = [];
+    if (icalData) {
+      events = await calendarService.parseICalData(icalData);
+    } else if (url) {
+      events = await calendarService.parseICalFromUrl(url);
+    } else {
+      return res.status(400).json({ success: false, error: 'Please provide iCal data or URL' });
+    }
+
+    // Insert events as personal activities
+    let imported = 0;
+    for (const event of events) {
+      // Only import recurring events
+      if (event.recurrence === 'weekly' && event.start_time && event.end_time) {
+        db.prepare(`
+          INSERT INTO personal_activities (title, description, day_of_week, start_time, end_time, recurrence, category, is_flexible)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(event.title, event.description, event.day_of_week, event.start_time, event.end_time, event.recurrence, event.category, 0);
+        imported++;
+      }
+    }
+
+    res.json({ success: true, imported, total: events.length });
+  } catch (error) {
+    console.error('Calendar import error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ===== AI ACTIVITY PARSER =====
+app.post('/api/activities/parse', async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) {
+      return res.status(400).json({ success: false, error: 'Please provide activity description' });
+    }
+
+    const aiService = new AIActivityService();
+    const activities = aiService.parseActivities(text);
+
+    res.json({ success: true, activities });
+  } catch (error) {
+    console.error('AI parsing error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/activities/parse-and-save', async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) {
+      return res.status(400).json({ success: false, error: 'Please provide activity description' });
+    }
+
+    const aiService = new AIActivityService();
+    const activities = aiService.parseActivities(text);
+
+    // Save each activity
+    let saved = 0;
+    for (const activity of activities) {
+      if (activity.day_of_week !== null && activity.start_time && activity.end_time) {
+        db.prepare(`
+          INSERT INTO personal_activities (title, description, day_of_week, start_time, end_time, recurrence, category, is_flexible)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          activity.title,
+          activity.description,
+          activity.day_of_week,
+          activity.start_time,
+          activity.end_time,
+          activity.recurrence || 'weekly',
+          activity.category || 'personal',
+          activity.is_flexible ? 1 : 0
+        );
+        saved++;
+      }
+    }
+
+    res.json({ success: true, parsed: activities.length, saved });
+  } catch (error) {
+    console.error('AI parsing error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ===== SCHEDULE GENERATION =====
+app.post('/api/schedule/generate', async (req, res) => {
+  try {
+    const generator = new ScheduleGeneratorService();
+    const result = await generator.generateWeeklySchedule();
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Schedule generation error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/schedule/generated', (req, res) => {
+  const latestSchedule = db.prepare(`
+    SELECT * FROM generated_schedules
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).get();
+
+  if (!latestSchedule) {
+    return res.json({ success: false, message: 'No generated schedule found' });
+  }
+
+  const studyBlocks = db.prepare(`
+    SELECT sb.*, c.name as course_name, c.code as course_code, c.color
+    FROM study_blocks sb
+    JOIN courses c ON sb.course_id = c.id
+    WHERE sb.generated_schedule_id = ?
+    ORDER BY sb.day_of_week, sb.start_time
+  `).all(latestSchedule.id);
+
+  res.json({
+    success: true,
+    schedule: JSON.parse(latestSchedule.schedule_data),
+    studyHours: {
+      recommended: latestSchedule.study_hours_recommended,
+      allocated: latestSchedule.study_hours_available,
+      deficit: Math.max(0, latestSchedule.study_hours_recommended - latestSchedule.study_hours_available)
+    },
+    studyBlocks,
+    createdAt: latestSchedule.created_at
   });
 });
 
