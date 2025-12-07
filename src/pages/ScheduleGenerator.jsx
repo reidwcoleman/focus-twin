@@ -30,8 +30,9 @@ export default function ScheduleGenerator() {
 
       const data = await response.json()
       if (data.success) {
-        setParsedActivities(data.activities)
-        setMessage({ type: 'success', text: `Parsed ${data.activities.length} activities!` })
+        setParsedActivities(data.activities.map((act, idx) => ({ ...act, id: `temp-${idx}` })))
+        setShowReviewModal(true)
+        setMessage({ type: 'success', text: `Parsed ${data.activities.length} activities! Please review and confirm.` })
       } else {
         setMessage({ type: 'error', text: data.error })
       }
@@ -47,25 +48,68 @@ export default function ScheduleGenerator() {
     setMessage(null)
 
     try {
-      const response = await fetch('/api/activities/parse-and-save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: aiInput })
-      })
-
-      const data = await response.json()
-      if (data.success) {
-        setMessage({ type: 'success', text: `Saved ${data.saved} activities!` })
-        setAiInput('')
-        setParsedActivities([])
-      } else {
-        setMessage({ type: 'error', text: data.error })
+      // Save each activity individually
+      let saved = 0
+      for (const activity of parsedActivities) {
+        if (activity.day_of_week !== null && activity.start_time && activity.end_time) {
+          await fetch('/api/activities', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: activity.title,
+              description: activity.description,
+              day_of_week: activity.day_of_week,
+              start_time: activity.start_time,
+              end_time: activity.end_time,
+              recurrence: activity.recurrence || 'weekly',
+              category: activity.category || 'personal',
+              is_flexible: activity.is_flexible || false
+            })
+          })
+          saved++
+        }
       }
+
+      setMessage({ type: 'success', text: `Saved ${saved} activities!` })
+      setAiInput('')
+      setParsedActivities([])
+      setShowReviewModal(false)
     } catch (error) {
       setMessage({ type: 'error', text: 'Failed to save activities' })
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleEditActivity = (activity) => {
+    setEditingActivity({ ...activity })
+  }
+
+  const handleUpdateActivity = () => {
+    setParsedActivities(parsedActivities.map(act =>
+      act.id === editingActivity.id ? editingActivity : act
+    ))
+    setEditingActivity(null)
+  }
+
+  const handleDeleteActivity = (id) => {
+    setParsedActivities(parsedActivities.filter(act => act.id !== id))
+  }
+
+  const handleAddNewActivity = () => {
+    const newActivity = {
+      id: `temp-${Date.now()}`,
+      title: '',
+      description: '',
+      day_of_week: 1,
+      start_time: '09:00',
+      end_time: '10:00',
+      category: 'personal',
+      recurrence: 'weekly',
+      is_flexible: false
+    }
+    setParsedActivities([...parsedActivities, newActivity])
+    setEditingActivity(newActivity)
   }
 
   const handleCalendarImport = async () => {
@@ -204,43 +248,12 @@ export default function ScheduleGenerator() {
             <button
               onClick={handleAIParse}
               disabled={loading || !aiInput.trim()}
-              className="px-6 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold"
             >
-              {loading ? <Loader size={20} className="animate-spin" /> : <FileText size={20} />}
-              Preview Parsed Activities
-            </button>
-            <button
-              onClick={handleSaveActivities}
-              disabled={loading || !aiInput.trim()}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {loading ? <Loader size={20} className="animate-spin" /> : <CheckCircle size={20} />}
-              Save Activities
+              {loading ? <Loader size={20} className="animate-spin" /> : <Sparkles size={20} />}
+              Create Activities from Description
             </button>
           </div>
-
-          {/* Parsed Activities Preview */}
-          {parsedActivities.length > 0 && (
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <h3 className="font-semibold text-gray-900 mb-3">Parsed Activities:</h3>
-              <div className="space-y-2">
-                {parsedActivities.map((activity, idx) => (
-                  <div key={idx} className="p-3 bg-white rounded border border-gray-200">
-                    <div className="font-medium text-gray-900">{activity.title}</div>
-                    <div className="text-sm text-gray-600 mt-1">
-                      {activity.day_of_week !== null && (
-                        <span>Day: {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][activity.day_of_week]} | </span>
-                      )}
-                      {activity.start_time && activity.end_time && (
-                        <span>{activity.start_time} - {activity.end_time} | </span>
-                      )}
-                      <span className="text-indigo-600">{activity.category}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
