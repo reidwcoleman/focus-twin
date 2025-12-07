@@ -70,7 +70,7 @@ Navigate to **AI Schedule** in the sidebar.
    - Upload an `.ics` file from your calendar app
 3. Click "Import Calendar"
 
-#### Option B: AI Activity Input
+#### Option B: AI Activity Input (Recommended)
 1. Click the "AI Activity Input" tab
 2. Describe your weekly activities in the text area. Example:
    ```
@@ -79,8 +79,13 @@ Navigate to **AI Schedule** in the sidebar.
    I have club meetings on Friday at 4pm for 2 hours.
    I volunteer on weekends from 10am to 12pm.
    ```
-3. Click "Preview Parsed Activities" to see what the AI extracted
-4. Click "Save Activities" to add them to your schedule
+3. Click "Create Activities from Description"
+4. **Review & Confirm Modal** appears with all parsed activities:
+   - ✏️ Click the **Edit** button on any activity to modify details
+   - 🗑️ Click the **Delete** button to remove unwanted activities
+   - ➕ Click "Add Another Activity" to manually add more
+   - Each activity shows: Name, Day, Time, and Category
+5. Once satisfied, click "Save X Activities" to confirm
 
 ### Step 2: Sync Canvas Classes
 
@@ -99,9 +104,25 @@ Click the big **"Generate My Schedule"** button. The AI will:
 ### Step 4: Review Your Schedule
 
 The generated schedule shows:
-- **Study Hours Summary**: Recommended vs. Allocated hours
-- **Weekly Grid**: All classes, activities, and study blocks
-- **Study Blocks**: Clearly marked with course name and time
+
+**Study Hours Dashboard:**
+- Recommended hours (based on workload)
+- Allocated hours (what fits in your schedule)
+- Deficit/surplus indicator
+
+**Your Study Times This Week** (Purple section):
+A dedicated summary showing exactly when to study:
+- Course name with color coding
+- **Specific day and time** (e.g., "Monday • 09:00 - 11:00")
+- Duration of each session
+- Easy-to-scan card layout
+
+**Complete Weekly Schedule:**
+- Day-by-day breakdown
+- Classes, activities, and study blocks all visible
+- Study sessions highlighted with 📚 icon
+- Times prominently displayed with ⏰ icon
+- Color-coded: Blue for classes, Purple for study sessions, Gray for activities
 
 ## Technical Architecture
 
