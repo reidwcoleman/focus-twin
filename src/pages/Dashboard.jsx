@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { format, isToday, isTomorrow, isPast } from 'date-fns'
-import { AlertCircle, CheckCircle, Clock, TrendingUp } from 'lucide-react'
+import { format, isToday, isTomorrow, isPast, formatDistanceToNow } from 'date-fns'
+import { AlertCircle, CheckCircle, Clock, TrendingUp, RefreshCw, Trophy } from 'lucide-react'
 
 export default function Dashboard() {
   const [stats, setStats] = useState({})
@@ -8,10 +8,34 @@ export default function Dashboard() {
   const [exams, setExams] = useState([])
   const [schedule, setSchedule] = useState([])
   const [grades, setGrades] = useState([])
+  const [syncStatus, setSyncStatus] = useState(null)
+  const [autoSync, setAutoSync] = useState(false)
 
   useEffect(() => {
     fetchData()
+    fetchSyncStatus()
+    fetchAutoSyncSetting()
   }, [])
+
+  const fetchSyncStatus = async () => {
+    try {
+      const res = await fetch('/api/canvas/sync-status')
+      const data = await res.json()
+      setSyncStatus(data)
+    } catch (error) {
+      console.error('Error fetching sync status:', error)
+    }
+  }
+
+  const fetchAutoSyncSetting = async () => {
+    try {
+      const res = await fetch('/api/settings/auto_sync')
+      const data = await res.json()
+      if (data) setAutoSync(data.value === 'true')
+    } catch (error) {
+      console.error('Error fetching auto-sync setting:', error)
+    }
+  }
 
   const fetchData = async () => {
     try {
@@ -39,15 +63,44 @@ export default function Dashboard() {
 
   const todaySchedule = schedule.filter(s => s.day_of_week === new Date().getDay())
 
+  // Calculate overall GPA
+  const overallGPA = grades.length > 0
+    ? grades.reduce((sum, g) => sum + (g.average || 0), 0) / grades.length
+    : 0
+
   return (
     <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1">Welcome back! Here's what's happening today.</p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-500 mt-1">Welcome back! Here's what's happening today.</p>
+        </div>
+
+        {/* Sync Status Indicator */}
+        {syncStatus?.configured && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <RefreshCw
+              size={16}
+              className={`${autoSync ? 'text-green-600 animate-pulse' : 'text-gray-400'}`}
+            />
+            <div className="text-sm">
+              {autoSync ? (
+                <p className="font-medium text-green-600">Auto-sync active</p>
+              ) : (
+                <p className="text-gray-600">Auto-sync off</p>
+              )}
+              {syncStatus.lastSync && (
+                <p className="text-xs text-gray-500">
+                  {formatDistanceToNow(new Date(syncStatus.lastSync), { addSuffix: true })}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
         <StatCard
           icon={<Clock className="text-orange-500" />}
           label="Pending Assignments"
@@ -71,6 +124,13 @@ export default function Dashboard() {
           label="Active Courses"
           value={stats.totalCourses || 0}
           color="blue"
+        />
+        <StatCard
+          icon={<Trophy className="text-purple-500" />}
+          label="Overall GPA"
+          value={overallGPA > 0 ? `${overallGPA.toFixed(1)}%` : 'N/A'}
+          color="purple"
+          highlight={overallGPA >= 90}
         />
       </div>
 
@@ -183,23 +243,28 @@ export default function Dashboard() {
   )
 }
 
-function StatCard({ icon, label, value, color }) {
+function StatCard({ icon, label, value, color, highlight }) {
   const bgColors = {
     orange: 'bg-orange-50',
     green: 'bg-green-50',
     red: 'bg-red-50',
-    blue: 'bg-blue-50'
+    blue: 'bg-blue-50',
+    purple: 'bg-purple-50'
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div className={`bg-white rounded-xl shadow-sm border p-6 ${
+      highlight ? 'border-purple-300 ring-2 ring-purple-100' : 'border-gray-200'
+    }`}>
       <div className="flex items-center gap-4">
         <div className={`p-3 rounded-lg ${bgColors[color]}`}>
           {icon}
         </div>
         <div>
           <p className="text-gray-500 text-sm">{label}</p>
-          <p className="text-2xl font-bold text-gray-900">{value}</p>
+          <p className={`text-2xl font-bold ${highlight ? 'text-purple-600' : 'text-gray-900'}`}>
+            {value}
+          </p>
         </div>
       </div>
     </div>

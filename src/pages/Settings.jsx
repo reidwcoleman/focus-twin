@@ -109,9 +109,16 @@ export default function Settings() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key: 'canvas_token', value: accessToken })
+        }),
+        // Automatically enable auto-sync when Canvas is configured
+        fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'auto_sync', value: 'true' })
         })
       ])
-      alert('Settings saved successfully!')
+      setAutoSync(true) // Update local state
+      alert('Settings saved successfully! Auto-sync enabled.')
       fetchSyncStatus()
     } catch (error) {
       alert('Error saving settings: ' + error.message)
