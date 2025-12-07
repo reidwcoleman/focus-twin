@@ -111,13 +111,13 @@ class CanvasService {
 
   async getCourseSchedule(canvasCourseId) {
     try {
-      // Get calendar events for this course
+      // Get all calendar events (Canvas doesn't support per-course calendar endpoint reliably)
       const startDate = new Date();
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + 14); // Next 2 weeks
 
       const events = await this.makeRequest(
-        `/courses/${canvasCourseId}/calendar_events?start_date=${startDate.toISOString()}&end_date=${endDate.toISOString()}&per_page=100`
+        `/calendar_events?context_codes[]=course_${canvasCourseId}&start_date=${startDate.toISOString()}&end_date=${endDate.toISOString()}&per_page=100`
       );
 
       // Track unique schedule patterns (to avoid duplicates)
