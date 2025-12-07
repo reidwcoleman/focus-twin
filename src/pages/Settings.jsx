@@ -10,11 +10,24 @@ export default function Settings() {
   const [syncing, setSyncing] = useState(false)
   const [testResult, setTestResult] = useState(null)
   const [syncResult, setSyncResult] = useState(null)
+  const [autoSync, setAutoSync] = useState(false)
 
   useEffect(() => {
     fetchSettings()
     fetchSyncStatus()
+    fetchAutoSyncSetting()
   }, [])
+
+  // Auto-sync every minute when enabled
+  useEffect(() => {
+    if (!autoSync || !syncStatus?.configured) return
+
+    const interval = setInterval(() => {
+      handleSync(true) // true = silent sync
+    }, 60000) // 60 seconds
+
+    return () => clearInterval(interval)
+  }, [autoSync, syncStatus?.configured])
 
   const fetchSettings = async () => {
     try {
@@ -39,6 +52,29 @@ export default function Settings() {
       setSyncStatus(data)
     } catch (error) {
       console.error('Error fetching sync status:', error)
+    }
+  }
+
+  const fetchAutoSyncSetting = async () => {
+    try {
+      const res = await fetch('/api/settings/auto_sync')
+      const data = await res.json()
+      if (data) setAutoSync(data.value === 'true')
+    } catch (error) {
+      console.error('Error fetching auto-sync setting:', error)
+    }
+  }
+
+  const toggleAutoSync = async (enabled) => {
+    setAutoSync(enabled)
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'auto_sync', value: enabled.toString() })
+      })
+    } catch (error) {
+      console.error('Error saving auto-sync setting:', error)
     }
   }
 
@@ -82,27 +118,38 @@ export default function Settings() {
     }
   }
 
-  const handleSync = async () => {
-    setSyncing(true)
-    setSyncResult(null)
+  const handleSync = async (silent = false) => {
+    if (!silent) {
+      setSyncing(true)
+      setSyncResult(null)
+    }
 
     try {
       const res = await fetch('/api/canvas/sync', {
         method: 'POST'
       })
       const data = await res.json()
-      setSyncResult(data)
+
+      if (!silent) {
+        setSyncResult(data)
+      }
 
       if (data.success) {
         fetchSyncStatus()
-        setTimeout(() => {
-          window.location.reload() // Reload to show new courses/assignments
-        }, 2000)
+        if (!silent) {
+          setTimeout(() => {
+            window.location.reload() // Reload to show new courses/assignments
+          }, 2000)
+        }
       }
     } catch (error) {
-      setSyncResult({ success: false, error: error.message })
+      if (!silent) {
+        setSyncResult({ success: false, error: error.message })
+      }
     } finally {
-      setSyncing(false)
+      if (!silent) {
+        setSyncing(false)
+      }
     }
   }
 
@@ -242,7 +289,7 @@ export default function Settings() {
                     </p>
                     {syncResult.success && syncResult.stats && (
                       <p className="text-sm text-green-700 mt-1">
-                        Synced {syncResult.stats.courses} courses and {syncResult.stats.newAssignments} new assignments
+                        Synced {syncResult.stats.courses} courses, {syncResult.stats.newAssignments} new assignments, and {syncResult.stats.newGrades} new grades
                       </p>
                     )}
                   </div>
@@ -250,14 +297,36 @@ export default function Settings() {
               </div>
             )}
 
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <RefreshCw size={20} className={syncing ? 'animate-spin' : ''} />
-              {syncing ? 'Syncing...' : 'Sync Now'}
-            </button>
+            <div className="flex items-center justify-between gap-4">
+              <button
+                onClick={() => handleSync()}
+                disabled={syncing}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw size={20} className={syncing ? 'animate-spin' : ''} />
+                {syncing ? 'Syncing...' : 'Sync Now'}
+              </button>
+
+              {/* Auto-sync toggle */}
+              <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoSync}
+                    onChange={(e) => toggleAutoSync(e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 rounded focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Auto-sync every minute
+                  </span>
+                </label>
+                {autoSync && (
+                  <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
+                    Active
+                  </span>
+                )}
+              </div>
+            </div>
 
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
@@ -269,8 +338,10 @@ export default function Settings() {
                 <br />
                 • Assignment completion status
                 <br />
+                • Grades from graded assignments
                 <br />
-                Existing data won't be duplicated. Run sync anytime to get updates!
+                <br />
+                Existing data won't be duplicated. Enable auto-sync for automatic updates every minute!
               </p>
             </div>
           </div>

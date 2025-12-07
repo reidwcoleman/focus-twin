@@ -313,6 +313,7 @@ app.post('/api/canvas/sync', async (req, res) => {
 
     // Sync assignments for each course
     let totalAssignments = 0;
+    let totalGrades = 0;
     for (const course of syncedCourses) {
       const assignments = await canvas.getAssignments(course.canvas_id);
 
@@ -334,6 +335,27 @@ app.post('/api/canvas/sync', async (req, res) => {
           ).run(course.id, assignment.title, assignment.description, assignment.due_date, 'medium', assignment.status, assignment.canvas_id);
           totalAssignments++;
         }
+
+        // Sync grade if assignment is graded
+        if (assignment.graded && assignment.grade != null && assignment.max_grade != null) {
+          // Check if grade already exists
+          const existingGrade = db.prepare(
+            'SELECT * FROM grades WHERE course_id = ? AND assignment_name = ?'
+          ).get(course.id, assignment.title);
+
+          if (existingGrade) {
+            // Update existing grade
+            db.prepare(
+              'UPDATE grades SET grade = ?, max_grade = ? WHERE course_id = ? AND assignment_name = ?'
+            ).run(assignment.grade, assignment.max_grade, course.id, assignment.title);
+          } else {
+            // Insert new grade
+            db.prepare(
+              'INSERT INTO grades (course_id, assignment_name, grade, max_grade, category) VALUES (?, ?, ?, ?, ?)'
+            ).run(course.id, assignment.title, assignment.grade, assignment.max_grade, 'Canvas Assignment');
+            totalGrades++;
+          }
+        }
       }
     }
 
@@ -347,7 +369,8 @@ app.post('/api/canvas/sync', async (req, res) => {
       success: true,
       stats: {
         courses: syncedCourses.length,
-        newAssignments: totalAssignments
+        newAssignments: totalAssignments,
+        newGrades: totalGrades
       }
     });
   } catch (error) {

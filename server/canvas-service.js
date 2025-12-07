@@ -45,13 +45,16 @@ class CanvasService {
 
   async getAssignments(canvasCourseId) {
     try {
-      const assignments = await this.makeRequest(`/courses/${canvasCourseId}/assignments?per_page=100`);
+      const assignments = await this.makeRequest(`/courses/${canvasCourseId}/assignments?include[]=submission&per_page=100`);
       return assignments.map(assignment => ({
         canvas_id: assignment.id,
         title: assignment.name,
         description: assignment.description?.replace(/<[^>]*>/g, '').substring(0, 500) || null, // Strip HTML
         due_date: assignment.due_at,
         status: assignment.submission?.submitted_at ? 'completed' : 'pending',
+        grade: assignment.submission?.score || null,
+        max_grade: assignment.points_possible || null,
+        graded: assignment.submission?.grade != null
       }));
     } catch (error) {
       console.error(`Failed to fetch assignments for course ${canvasCourseId}:`, error);
