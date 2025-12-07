@@ -330,14 +330,21 @@ export default function Schedule() {
             return (
               <div
                 key={index}
-                className={`min-h-32 bg-white p-2 ${
+                className={`min-h-40 bg-white p-2 overflow-y-auto max-h-60 ${
                   !isCurrentMonth ? 'bg-gray-50 text-gray-400' : ''
                 } ${isToday ? 'bg-indigo-50' : ''}`}
               >
-                <div className={`text-sm font-semibold mb-2 ${
-                  isToday ? 'text-indigo-600' : 'text-gray-700'
-                }`}>
-                  {format(day, 'd')}
+                <div className="flex items-center justify-between mb-2">
+                  <div className={`text-sm font-semibold ${
+                    isToday ? 'text-indigo-600' : 'text-gray-700'
+                  }`}>
+                    {format(day, 'd')}
+                  </div>
+                  {(events.length + classes.length) > 0 && (
+                    <div className="text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium">
+                      {events.length + classes.length}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -345,12 +352,12 @@ export default function Schedule() {
                   {classes.map(cls => (
                     <div
                       key={`class-${cls.id}`}
-                      className="text-xs p-1 rounded border-l-2 bg-gray-50 truncate group relative"
+                      className="text-xs p-1 rounded border-l-2 bg-gray-50 group relative mb-1"
                       style={{ borderLeftColor: cls.color }}
-                      title={`${cls.course_name} (${cls.start_time} - ${cls.end_time})`}
+                      title={`${cls.course_name}\n${cls.start_time} - ${cls.end_time}${cls.location ? `\n${cls.location}` : ''}`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-medium truncate">{cls.course_code || cls.course_name}</span>
+                        <span className="font-medium line-clamp-1">{cls.course_code || cls.course_name}</span>
                         <button
                           onClick={() => handleDelete(cls.id)}
                           className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded"
@@ -358,35 +365,51 @@ export default function Schedule() {
                           <X size={10} className="text-red-600" />
                         </button>
                       </div>
-                      <div className="text-gray-600 truncate">{cls.start_time}</div>
+                      <div className="text-gray-600 text-[10px]">{cls.start_time} - {cls.end_time}</div>
+                      {cls.location && (
+                        <div className="text-gray-500 text-[10px] line-clamp-1">📍 {cls.location}</div>
+                      )}
                     </div>
                   ))}
 
                   {/* Calendar Events */}
-                  {events.map(event => (
-                    <div
-                      key={`event-${event.id}`}
-                      className="text-xs p-1 rounded border-l-2 bg-blue-50 border-blue-400 truncate group relative"
-                      title={`${event.title} ${event.location ? `- ${event.location}` : ''}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium truncate text-blue-900">{event.title}</span>
-                        {!event.canvas_id && (
-                          <button
-                            onClick={() => handleDeleteEvent(event.id)}
-                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded"
-                          >
-                            <X size={10} className="text-red-600" />
-                          </button>
+                  {events.map(event => {
+                    const startTime = event.start_time ? parseISO(event.start_time) : null;
+                    const endTime = event.end_time ? parseISO(event.end_time) : null;
+                    const timeStr = startTime ?
+                      (endTime ? `${format(startTime, 'h:mm a')} - ${format(endTime, 'h:mm a')}` : format(startTime, 'h:mm a'))
+                      : '';
+
+                    return (
+                      <div
+                        key={`event-${event.id}`}
+                        className="text-xs p-1 rounded border-l-2 bg-blue-50 border-blue-400 group relative mb-1"
+                        title={`${event.title}${timeStr ? `\n${timeStr}` : ''}${event.location ? `\n${event.location}` : ''}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-blue-900 line-clamp-1">{event.title}</span>
+                          {!event.canvas_id && (
+                            <button
+                              onClick={() => handleDeleteEvent(event.id)}
+                              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded"
+                            >
+                              <X size={10} className="text-red-600" />
+                            </button>
+                          )}
+                        </div>
+                        {timeStr && (
+                          <div className="text-blue-700 text-[10px]">
+                            {timeStr}
+                          </div>
+                        )}
+                        {event.location && (
+                          <div className="text-gray-600 text-[10px] line-clamp-1">
+                            📍 {event.location}
+                          </div>
                         )}
                       </div>
-                      {event.start_time && (
-                        <div className="text-blue-700 truncate">
-                          {format(parseISO(event.start_time), 'h:mm a')}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )
