@@ -359,6 +359,23 @@ app.post('/api/canvas/sync', async (req, res) => {
       }
     }
 
+    // Sync schedules for each course
+    let totalSchedules = 0;
+    for (const course of syncedCourses) {
+      const schedules = await canvas.getCourseSchedule(course.canvas_id);
+
+      // Delete existing schedules for this course
+      db.prepare('DELETE FROM schedule WHERE course_id = ?').run(course.id);
+
+      // Insert new schedules
+      for (const schedule of schedules) {
+        db.prepare(
+          'INSERT INTO schedule (course_id, day_of_week, start_time, end_time, location) VALUES (?, ?, ?, ?, ?)'
+        ).run(course.id, schedule.day_of_week, schedule.start_time, schedule.end_time, schedule.location);
+        totalSchedules++;
+      }
+    }
+
     // Update last sync time
     db.prepare(`
       INSERT INTO settings (key, value) VALUES ('last_sync', ?)
@@ -370,7 +387,8 @@ app.post('/api/canvas/sync', async (req, res) => {
       stats: {
         courses: syncedCourses.length,
         newAssignments: totalAssignments,
-        newGrades: totalGrades
+        newGrades: totalGrades,
+        schedules: totalSchedules
       }
     });
   } catch (error) {

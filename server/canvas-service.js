@@ -109,6 +109,63 @@ class CanvasService {
     }
   }
 
+  async getCourseSchedule(canvasCourseId) {
+    try {
+      const sections = await this.makeRequest(`/courses/${canvasCourseId}/sections?include[]=students&per_page=100`);
+
+      const schedules = [];
+
+      for (const section of sections) {
+        // Check if this section has meeting times
+        if (section.course_section_meeting_times && section.course_section_meeting_times.length > 0) {
+          for (const meeting of section.course_section_meeting_times) {
+            // Canvas days: "MWF", "TR", etc.
+            // Convert to our day_of_week format (0=Sunday, 1=Monday, etc.)
+            const dayMap = {
+              'Su': 0, 'M': 1, 'T': 2, 'W': 3, 'R': 4, 'F': 5, 'S': 6
+            };
+
+            // Parse the days string (e.g., "MWF" -> [1, 3, 5])
+            const days = this.parseDays(meeting.days, dayMap);
+
+            // Create a schedule entry for each day
+            for (const day of days) {
+              schedules.push({
+                day_of_week: day,
+                start_time: meeting.start_time || '09:00', // Format: "HH:MM"
+                end_time: meeting.end_time || '10:00',
+                location: meeting.location || null
+              });
+            }
+          }
+        }
+      }
+
+      return schedules;
+    } catch (error) {
+      console.error(`Failed to fetch schedule for course ${canvasCourseId}:`, error);
+      return [];
+    }
+  }
+
+  parseDays(daysString, dayMap) {
+    if (!daysString) return [];
+
+    const days = [];
+    const daysStr = daysString.replace(/\s/g, ''); // Remove spaces
+
+    // Handle special cases
+    if (daysStr.includes('Su')) days.push(dayMap['Su']);
+    if (daysStr.includes('M') && !daysStr.includes('Su')) days.push(dayMap['M']);
+    if (daysStr.includes('T') && !daysStr.includes('R')) days.push(dayMap['T']);
+    if (daysStr.includes('W')) days.push(dayMap['W']);
+    if (daysStr.includes('R')) days.push(dayMap['R']);
+    if (daysStr.includes('F')) days.push(dayMap['F']);
+    if (daysStr.includes('S') && !daysStr.includes('Su')) days.push(dayMap['S']);
+
+    return days;
+  }
+
   async testConnection() {
     try {
       await this.makeRequest('/users/self');
