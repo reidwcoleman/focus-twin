@@ -52,6 +52,18 @@ export default function Schedule() {
     setCalendarEvents(filteredEvents)
   }
 
+  const formatTo12Hour = (time24) => {
+    if (!time24) return ''
+    const [hours24, minutes] = time24.split(':')
+    let hours = parseInt(hours24)
+    const period = hours >= 12 ? 'PM' : 'AM'
+
+    if (hours === 0) hours = 12
+    else if (hours > 12) hours -= 12
+
+    return `${hours}:${minutes} ${period}`
+  }
+
   const parseTimeInput = (input) => {
     if (!input) return ''
 
@@ -259,7 +271,7 @@ export default function Schedule() {
                       </button>
                       <p className="font-medium text-sm text-gray-900">{item.course_name}</p>
                       <p className="text-xs text-gray-600 mt-1">
-                        {item.start_time} - {item.end_time}
+                        {formatTo12Hour(item.start_time)} - {formatTo12Hour(item.end_time)}
                       </p>
                       {item.location && (
                         <p className="text-xs text-gray-500 mt-1">📍 {item.location}</p>
@@ -546,7 +558,7 @@ export default function Schedule() {
                           <X size={10} className="text-red-600" />
                         </button>
                       </div>
-                      <div className="text-gray-600 text-[10px]">{cls.start_time} - {cls.end_time}</div>
+                      <div className="text-gray-600 text-[10px]">{formatTo12Hour(cls.start_time)} - {formatTo12Hour(cls.end_time)}</div>
                       {cls.location && (
                         <div className="text-gray-500 text-[10px] line-clamp-1">📍 {cls.location}</div>
                       )}
@@ -771,8 +783,8 @@ export default function Schedule() {
                 </div>
                 {formData.start_time && formData.end_time && (
                   <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
-                    <p className="text-sm text-green-800">
-                      ✓ {formData.start_time} - {formData.end_time}
+                    <p className="text-sm text-green-800 font-semibold">
+                      ✓ {formatTo12Hour(formData.start_time)} - {formatTo12Hour(formData.end_time)}
                     </p>
                   </div>
                 )}

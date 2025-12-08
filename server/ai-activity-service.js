@@ -28,24 +28,38 @@ class AIActivityService {
     const activities = [];
     const sentences = text.split(/[.!;]/).filter(s => s.trim());
 
+    console.log(`[AI Service] Parsing ${sentences.length} sentences from input`);
+
     for (const sentence of sentences) {
       const activity = this.parseSentence(sentence.trim());
       if (activity) {
+        console.log(`[AI Service] Parsed activity:`, {
+          title: activity.title,
+          days: activity.days,
+          day_of_week: activity.day_of_week,
+          time: `${activity.start_time} - ${activity.end_time}`
+        });
+
         // If multiple days found, create separate activities
         if (activity.days && activity.days.length > 0) {
+          console.log(`[AI Service] Creating ${activity.days.length} separate activities for days: ${activity.days.join(', ')}`);
           for (const day of activity.days) {
-            activities.push({
+            const newActivity = {
               ...activity,
               day_of_week: day,
               days: undefined
-            });
+            };
+            activities.push(newActivity);
+            console.log(`[AI Service] Created activity for day ${day}: ${activity.title}`);
           }
         } else if (activity.day_of_week !== null) {
           activities.push(activity);
+          console.log(`[AI Service] Created single activity for day ${activity.day_of_week}: ${activity.title}`);
         }
       }
     }
 
+    console.log(`[AI Service] Total activities created: ${activities.length}`);
     return activities;
   }
 
@@ -88,69 +102,101 @@ class AIActivityService {
   extractTitle(sentence) {
     // Common patterns: "I have [activity]", "I go to [activity]", "[activity] on"
     const patterns = [
-      /(?:have|attend|go to|take)\s+([a-z\s]+?)(?:\s+(?:on|at|from|every|each))/i,
-      /^([a-z\s]+?)(?:\s+(?:on|at|from|every|each))/i,
-      /(?:i\s+)?([a-z\s]+?)\s+(?:class|practice|session|meeting)/i
+      // "I have soccer practice on..."
+      /(?:have|attend|go to|take|do)\s+([a-z\s]+?)(?:\s+(?:on|at|from|every|each|monday|tuesday|wednesday|thursday|friday|saturday|sunday))/i,
+      // "Soccer practice on..."
+      /^([a-z\s]+?)(?:\s+(?:on|at|from|every|each|monday|tuesday|wednesday|thursday|friday|saturday|sunday))/i,
+      // "I have soccer class/practice/session/meeting"
+      /(?:i\s+)?(?:have|attend|go to|take|do)\s+([a-z\s]+?(?:class|practice|session|meeting|training))/i,
+      // "Soccer practice" standalone
+      /([a-z\s]+?)\s+(?:class|practice|session|meeting|training)/i
     ];
 
     for (const pattern of patterns) {
       const match = sentence.match(pattern);
       if (match && match[1]) {
-        const title = match[1].trim();
+        let title = match[1].trim();
         // Clean up common words
-        return title
+        title = title
           .replace(/^(i|my|the|a|an)\s+/gi, '')
           .replace(/\s+(is|are|at|on)\s+/gi, ' ')
           .trim();
+
+        // Capitalize first letter of each word for display
+        title = title.split(' ').map(word =>
+          word.charAt(0).toUpperCase() + word.slice(1)
+        ).join(' ');
+
+        return title;
       }
     }
 
-    // Fallback: take first few words
-    const words = sentence.split(' ').slice(0, 4);
-    return words.join(' ').replace(/[^a-z\s]/gi, '').trim();
+    // Fallback: take first few words and capitalize
+    const words = sentence.split(' ').slice(0, 3);
+    let title = words.join(' ').replace(/[^a-z\s]/gi, '').trim();
+    return title.split(' ').map(word =>
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
   }
 
   /**
    * Extract days of week from sentence
    */
   extractDays(sentence) {
-    const days = [];
     const foundDays = new Set();
+    const lowerSentence = sentence.toLowerCase();
 
-    // Check for "and" pattern: "Monday and Wednesday"
-    const andPattern = /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+and\s+|\s*,\s*)(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/gi;
-    let match;
-    while ((match = andPattern.exec(sentence)) !== null) {
-      const day1 = this.dayMap[match[1].toLowerCase()];
-      const day2 = this.dayMap[match[2].toLowerCase()];
-      if (day1 !== undefined) foundDays.add(day1);
-      if (day2 !== undefined) foundDays.add(day2);
-    }
-
-    // Check for individual days
-    for (const [dayName, dayNum] of Object.entries(this.dayMap)) {
-      const regex = new RegExp(`\\b${dayName}s?\\b`, 'i');
-      if (regex.test(sentence)) {
-        foundDays.add(dayNum);
-      }
-    }
-
-    // Check for "every day" or "daily"
-    if (/every\s*day|daily|all\s*days/i.test(sentence)) {
+    // Check for "every day" or "daily" FIRST
+    if (/every\s*day|daily|all\s*days/i.test(lowerSentence)) {
       return [0, 1, 2, 3, 4, 5, 6];
     }
 
     // Check for "weekdays"
-    if (/weekdays?|mon-fri|monday-friday/i.test(sentence)) {
+    if (/weekdays?|mon-fri|monday-friday/i.test(lowerSentence)) {
       return [1, 2, 3, 4, 5];
     }
 
     // Check for "weekends"
-    if (/weekends?|sat-sun|saturday-sunday/i.test(sentence)) {
+    if (/weekends?|sat-sun|saturday-sunday/i.test(lowerSentence)) {
       return [0, 6];
     }
 
-    return Array.from(foundDays).sort();
+    // Enhanced pattern for "Monday and Wednesday" or "Monday, Wednesday" or "Monday and Wednesday and Friday"
+    // This will catch multiple days connected by "and" or ","
+    const multiDayPattern = /(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)(?:\s*(?:and|,)\s*|\s+)(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)/gi;
+    let match;
+    let foundMatches = [];
+
+    // Reset regex before using
+    multiDayPattern.lastIndex = 0;
+    while ((match = multiDayPattern.exec(lowerSentence)) !== null) {
+      foundMatches.push(match[1]);
+      foundMatches.push(match[2]);
+    }
+
+    // Add all matched days
+    for (const dayName of foundMatches) {
+      const dayNum = this.dayMap[dayName];
+      if (dayNum !== undefined) {
+        foundDays.add(dayNum);
+      }
+    }
+
+    // Also check for individual days that might not be in "and" patterns
+    // This catches standalone days or days at the end of lists
+    for (const [dayName, dayNum] of Object.entries(this.dayMap)) {
+      // Use word boundaries to avoid false matches
+      const regex = new RegExp(`\\b${dayName}s?\\b`, 'i');
+      if (regex.test(lowerSentence)) {
+        foundDays.add(dayNum);
+      }
+    }
+
+    // Convert Set to sorted Array
+    const result = Array.from(foundDays).sort();
+
+    console.log(`[AI Service] Extracted days from "${sentence}": ${result.join(', ')}`);
+    return result;
   }
 
   /**
@@ -244,19 +290,24 @@ class AIActivityService {
   categorizeActivity(title) {
     const lower = title.toLowerCase();
 
-    if (/gym|workout|exercise|fitness|yoga|run|swim|sport/i.test(lower)) {
+    // Fitness & Sports (check this first to catch "soccer practice", "basketball practice", etc.)
+    if (/gym|workout|exercise|fitness|yoga|run|swim|sport|soccer|football|basketball|baseball|tennis|volleyball|hockey|practice|training|team/i.test(lower)) {
       return 'fitness';
     }
-    if (/work|job|office|shift|meeting/i.test(lower)) {
+    // Work
+    if (/work|job|office|shift|business/i.test(lower)) {
       return 'work';
     }
-    if (/class|lecture|lab|seminar|tutorial/i.test(lower)) {
+    // Class (academic)
+    if (/class|lecture|lab|seminar|tutorial|course/i.test(lower)) {
       return 'class';
     }
-    if (/club|organization|volunteer|extracurricular/i.test(lower)) {
+    // Extracurricular (clubs, meetings)
+    if (/club|meeting|organization|volunteer|extracurricular|community/i.test(lower)) {
       return 'extracurricular';
     }
-    if (/study|homework|assignment|project/i.test(lower)) {
+    // Study
+    if (/study|homework|assignment|project|review|exam prep/i.test(lower)) {
       return 'study';
     }
 
