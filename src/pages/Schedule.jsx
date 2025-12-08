@@ -14,7 +14,7 @@ export default function Schedule() {
   const [showModal, setShowModal] = useState(false)
   const [formData, setFormData] = useState({
     course_id: '',
-    day_of_week: 1,
+    selectedDays: [],
     start_time: '',
     end_time: '',
     location: ''
@@ -48,14 +48,44 @@ export default function Schedule() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    await fetch('/api/schedule', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
-    })
+
+    // Create schedule entry for each selected day
+    for (const day of formData.selectedDays) {
+      await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          course_id: formData.course_id,
+          day_of_week: day,
+          start_time: formData.start_time,
+          end_time: formData.end_time,
+          location: formData.location
+        })
+      })
+    }
+
     setShowModal(false)
-    setFormData({ course_id: '', day_of_week: 1, start_time: '', end_time: '', location: '' })
+    setFormData({ course_id: '', selectedDays: [], start_time: '', end_time: '', location: '' })
     fetchData()
+  }
+
+  const toggleDay = (day) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedDays: prev.selectedDays.includes(day)
+        ? prev.selectedDays.filter(d => d !== day)
+        : [...prev.selectedDays, day].sort()
+    }))
+  }
+
+  const selectDayPattern = (pattern) => {
+    const patterns = {
+      'weekdays': [1, 2, 3, 4, 5], // M-F
+      'mwf': [1, 3, 5], // MWF
+      'tth': [2, 4], // T/Th
+      'all': [0, 1, 2, 3, 4, 5, 6]
+    }
+    setFormData(prev => ({ ...prev, selectedDays: patterns[pattern] || [] }))
   }
 
   const handleDelete = async (id) => {
@@ -168,85 +198,151 @@ export default function Schedule() {
           ))}
         </div>
 
-        {/* Modal */}
+        {/* Polished Modal */}
         {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-md">
-              <h2 className="text-xl font-bold mb-4">Add Class to Schedule</h2>
-              <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-6 rounded-t-2xl">
+                <h2 className="text-2xl font-bold">Add Class to Schedule</h2>
+                <p className="text-indigo-100 text-sm mt-1">Set up your recurring class schedule</p>
+              </div>
+
+              <form onSubmit={handleSubmit} className="p-8 space-y-6">
+                {/* Course Selection */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Course</label>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Select Course
+                  </label>
                   <select
                     value={formData.course_id}
                     onChange={(e) => setFormData({ ...formData, course_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                     required
                   >
-                    <option value="">Select a course</option>
+                    <option value="">Choose a course...</option>
                     {courses.map(course => (
                       <option key={course.id} value={course.id}>{course.name}</option>
                     ))}
                   </select>
                 </div>
 
+                {/* Quick Day Patterns */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Day</label>
-                  <select
-                    value={formData.day_of_week}
-                    onChange={(e) => setFormData({ ...formData, day_of_week: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
+                  <label className="block text-sm font-semibold text-gray-900 mb-3">
+                    Quick Select Days
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => selectDayPattern('weekdays')}
+                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 font-medium shadow-sm transition-all"
+                    >
+                      M-F
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectDayPattern('mwf')}
+                      className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 font-medium shadow-sm transition-all"
+                    >
+                      MWF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectDayPattern('tth')}
+                      className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg hover:from-purple-600 hover:to-purple-700 font-medium shadow-sm transition-all"
+                    >
+                      T/Th
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, selectedDays: [] }))}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition-all"
+                    >
+                      Clear
+                    </button>
+                  </div>
+
+                  {/* Individual Day Selection */}
+                  <div className="grid grid-cols-7 gap-2">
                     {DAYS.map((day, index) => (
-                      <option key={index} value={index}>{day}</option>
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => toggleDay(index)}
+                        className={`p-3 rounded-xl font-semibold transition-all ${
+                          formData.selectedDays.includes(index)
+                            ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg scale-105'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        <div className="text-xs">{day.substring(0, 3)}</div>
+                      </button>
                     ))}
-                  </select>
+                  </div>
+                  {formData.selectedDays.length === 0 && (
+                    <p className="text-sm text-red-600 mt-2">⚠️ Please select at least one day</p>
+                  )}
                 </div>
 
+                {/* Time Selection */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Start Time
+                    </label>
                     <input
                       type="time"
                       value={formData.start_time}
                       onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      End Time
+                    </label>
                     <input
                       type="time"
                       value={formData.end_time}
                       onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                       required
                     />
                   </div>
                 </div>
 
+                {/* Location */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Location (Optional)
+                  </label>
                   <input
                     type="text"
                     value={formData.location}
                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    placeholder="Room 101"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    placeholder="e.g., Room 101, Science Building"
                   />
                 </div>
 
-                <div className="flex gap-2">
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                    disabled={formData.selectedDays.length === 0}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Add Class
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowModal(false)}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                    onClick={() => {
+                      setShowModal(false)
+                      setFormData({ course_id: '', selectedDays: [], start_time: '', end_time: '', location: '' })
+                    }}
+                    className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold transition-all"
                   >
                     Cancel
                   </button>
@@ -417,85 +513,151 @@ export default function Schedule() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Polished Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Add Class to Schedule</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-6 rounded-t-2xl">
+              <h2 className="text-2xl font-bold">Add Class to Schedule</h2>
+              <p className="text-indigo-100 text-sm mt-1">Set up your recurring class schedule</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-8 space-y-6">
+              {/* Course Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Course</label>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  Select Course
+                </label>
                 <select
                   value={formData.course_id}
                   onChange={(e) => setFormData({ ...formData, course_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                   required
                 >
-                  <option value="">Select a course</option>
+                  <option value="">Choose a course...</option>
                   {courses.map(course => (
                     <option key={course.id} value={course.id}>{course.name}</option>
                   ))}
                 </select>
               </div>
 
+              {/* Quick Day Patterns */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Day</label>
-                <select
-                  value={formData.day_of_week}
-                  onChange={(e) => setFormData({ ...formData, day_of_week: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                >
+                <label className="block text-sm font-semibold text-gray-900 mb-3">
+                  Quick Select Days
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => selectDayPattern('weekdays')}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 font-medium shadow-sm transition-all"
+                  >
+                    M-F
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selectDayPattern('mwf')}
+                    className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 font-medium shadow-sm transition-all"
+                  >
+                    MWF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selectDayPattern('tth')}
+                    className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg hover:from-purple-600 hover:to-purple-700 font-medium shadow-sm transition-all"
+                  >
+                    T/Th
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, selectedDays: [] }))}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition-all"
+                  >
+                    Clear
+                  </button>
+                </div>
+
+                {/* Individual Day Selection */}
+                <div className="grid grid-cols-7 gap-2">
                   {DAYS.map((day, index) => (
-                    <option key={index} value={index}>{day}</option>
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => toggleDay(index)}
+                      className={`p-3 rounded-xl font-semibold transition-all ${
+                        formData.selectedDays.includes(index)
+                          ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg scale-105'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      <div className="text-xs">{day.substring(0, 3)}</div>
+                    </button>
                   ))}
-                </select>
+                </div>
+                {formData.selectedDays.length === 0 && (
+                  <p className="text-sm text-red-600 mt-2">⚠️ Please select at least one day</p>
+                )}
               </div>
 
+              {/* Time Selection */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Start Time
+                  </label>
                   <input
                     type="time"
                     value={formData.start_time}
                     onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    End Time
+                  </label>
                   <input
                     type="time"
                     value={formData.end_time}
                     onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                     required
                   />
                 </div>
               </div>
 
+              {/* Location */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  Location (Optional)
+                </label>
                 <input
                   type="text"
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="Room 101"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  placeholder="e.g., Room 101, Science Building"
                 />
               </div>
 
-              <div className="flex gap-2">
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  disabled={formData.selectedDays.length === 0}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Add Class
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                  onClick={() => {
+                    setShowModal(false)
+                    setFormData({ course_id: '', selectedDays: [], start_time: '', end_time: '', location: '' })
+                  }}
+                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold transition-all"
                 >
                   Cancel
                 </button>

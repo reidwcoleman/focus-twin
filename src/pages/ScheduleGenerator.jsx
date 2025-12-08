@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Calendar, Sparkles, Upload, FileText, Loader, CheckCircle, AlertCircle, Edit2, Trash2, Plus } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Calendar, Sparkles, Upload, FileText, Loader, CheckCircle, AlertCircle, Edit2, Trash2, Plus, Clock, TrendingUp, BookOpen, X } from 'lucide-react'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -14,32 +14,54 @@ export default function ScheduleGenerator() {
   const [editingActivity, setEditingActivity] = useState(null)
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [generatedSchedule, setGeneratedSchedule] = useState(null)
+  const [parseStep, setParseStep] = useState(0) // For animated parsing feedback
+
+  // Auto-dismiss success messages
+  useEffect(() => {
+    if (message?.type === 'success') {
+      const timer = setTimeout(() => setMessage(null), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [message])
 
   const handleAIParse = async () => {
     if (!aiInput.trim()) return
 
     setLoading(true)
     setMessage(null)
+    setParseStep(0)
 
     try {
+      // Animated progress
+      setParseStep(1) // Reading your description...
+      await new Promise(resolve => setTimeout(resolve, 300))
+
+      setParseStep(2) // Understanding activities...
       const response = await fetch('/api/activities/parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: aiInput })
       })
 
+      setParseStep(3) // Extracting times and dates...
+      await new Promise(resolve => setTimeout(resolve, 200))
+
       const data = await response.json()
       if (data.success) {
+        setParseStep(4) // Creating activities...
         setParsedActivities(data.activities.map((act, idx) => ({ ...act, id: `temp-${idx}` })))
+        await new Promise(resolve => setTimeout(resolve, 300))
+
         setShowReviewModal(true)
-        setMessage({ type: 'success', text: `Parsed ${data.activities.length} activities! Please review and confirm.` })
+        setMessage({ type: 'success', text: `Found ${data.activities.length} ${data.activities.length === 1 ? 'activity' : 'activities'}! Review and confirm below.` })
       } else {
         setMessage({ type: 'error', text: data.error })
       }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to parse activities' })
+      setMessage({ type: 'error', text: 'Failed to parse activities. Please try again.' })
     } finally {
       setLoading(false)
+      setParseStep(0)
     }
   }
 
@@ -175,50 +197,76 @@ export default function ScheduleGenerator() {
     }
   }
 
+  const getParseStepText = () => {
+    switch (parseStep) {
+      case 1: return 'Reading your description...'
+      case 2: return 'Understanding activities...'
+      case 3: return 'Extracting times and dates...'
+      case 4: return 'Creating activities...'
+      default: return ''
+    }
+  }
+
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-          <Sparkles className="text-indigo-600" size={32} />
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto">
+      {/* Header with gradient */}
+      <div className="mb-8 text-center">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 mb-4">
+          <Sparkles className="text-white" size={32} />
+        </div>
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
           AI Schedule Generator
         </h1>
-        <p className="text-gray-500 mt-1">Import your calendar or describe your weekly activities, then let AI create your optimal study schedule</p>
+        <p className="text-gray-600 max-w-2xl mx-auto">
+          Describe your weekly activities in plain English, and our AI will create an optimized study schedule tailored to your needs
+        </p>
       </div>
 
+      {/* Enhanced message display with animation */}
       {message && (
-        <div className={`mb-6 p-4 rounded-lg flex items-center gap-2 ${
-          message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+        <div className={`mb-6 p-4 rounded-xl flex items-center justify-between gap-3 shadow-lg animate-slideDown ${
+          message.type === 'success'
+            ? 'bg-gradient-to-r from-green-50 to-emerald-50 text-green-800 border border-green-200'
+            : 'bg-gradient-to-r from-red-50 to-rose-50 text-red-800 border border-red-200'
         }`}>
-          {message.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
-          {message.text}
+          <div className="flex items-center gap-3">
+            {message.type === 'success' ? <CheckCircle size={22} /> : <AlertCircle size={22} />}
+            <span className="font-medium">{message.text}</span>
+          </div>
+          <button
+            onClick={() => setMessage(null)}
+            className="hover:bg-white/50 rounded-lg p-1 transition-colors"
+          >
+            <X size={18} />
+          </button>
         </div>
       )}
 
-      {/* Tab Navigation */}
-      <div className="flex gap-2 mb-6">
+      {/* Polished Tab Navigation */}
+      <div className="flex gap-3 mb-6 bg-gray-100 p-2 rounded-xl">
         <button
           onClick={() => setActiveTab('ai')}
-          className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+          className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
             activeTab === 'ai'
-              ? 'bg-indigo-600 text-white'
-              : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+              ? 'bg-white text-indigo-600 shadow-md'
+              : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          <div className="flex items-center gap-2">
-            <Sparkles size={20} />
+          <div className="flex items-center justify-center gap-2">
+            <Sparkles size={20} className={activeTab === 'ai' ? 'animate-pulse' : ''} />
             AI Activity Input
           </div>
         </button>
         <button
           onClick={() => setActiveTab('calendar')}
-          className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+          className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
             activeTab === 'calendar'
-              ? 'bg-indigo-600 text-white'
-              : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+              ? 'bg-white text-indigo-600 shadow-md'
+              : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          <div className="flex items-center gap-2">
-            <Calendar size={20} />
+          <div className="flex items-center justify-center gap-2">
+            <Upload size={20} />
             Calendar Import
           </div>
         </button>
@@ -226,32 +274,67 @@ export default function ScheduleGenerator() {
 
       {/* AI Input Tab */}
       {activeTab === 'ai' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Describe Your Weekly Activities</h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Tell me about your weekly schedule in plain English. For example:
-            <br />
-            <span className="italic text-gray-500">
-              "I have gym on Monday and Wednesday at 6pm for 1 hour. I work Tuesday and Thursday from 2pm to 6pm.
-              I have club meetings on Friday at 4pm for 2 hours."
-            </span>
-          </p>
+        <div className="bg-gradient-to-br from-white to-indigo-50/30 rounded-2xl shadow-lg border-2 border-indigo-100 p-8 mb-6">
+          <div className="flex items-start gap-4 mb-6">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+              <BookOpen className="text-white" size={24} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Describe Your Weekly Activities</h2>
+              <p className="text-gray-600">
+                Tell me about your weekly schedule in plain English. I'll create multiple activities automatically.
+              </p>
+            </div>
+          </div>
 
-          <textarea
-            value={aiInput}
-            onChange={(e) => setAiInput(e.target.value)}
-            className="w-full h-40 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            placeholder="I have gym on Monday and Wednesday at 6pm for 1 hour..."
-          />
+          {/* Example box */}
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-4">
+            <div className="flex items-start gap-2">
+              <TrendingUp className="text-indigo-600 flex-shrink-0 mt-0.5" size={18} />
+              <div>
+                <p className="text-sm font-semibold text-indigo-900 mb-1">Example:</p>
+                <p className="text-sm text-indigo-700 italic">
+                  "I have gym on Monday and Wednesday at 6pm for 1 hour. I work Tuesday and Thursday from 2pm to 6pm. Club meetings on Friday at 4pm for 2 hours."
+                </p>
+              </div>
+            </div>
+          </div>
 
-          <div className="flex gap-3 mt-4">
+          <div className="relative">
+            <textarea
+              value={aiInput}
+              onChange={(e) => setAiInput(e.target.value)}
+              className="w-full h-48 px-5 py-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all resize-none text-gray-900 placeholder-gray-400"
+              placeholder="Type your activities here... (e.g., 'I have gym on Monday at 6pm for 1 hour')"
+              disabled={loading}
+            />
+            <div className="absolute bottom-3 right-3 text-xs text-gray-400">
+              {aiInput.length} characters
+            </div>
+          </div>
+
+          {/* Parse step indicator */}
+          {loading && parseStep > 0 && (
+            <div className="mt-4 flex items-center gap-3 text-indigo-600 bg-indigo-50 p-3 rounded-lg animate-pulse">
+              <Loader size={18} className="animate-spin" />
+              <span className="text-sm font-medium">{getParseStepText()}</span>
+            </div>
+          )}
+
+          <div className="mt-6">
             <button
               onClick={handleAIParse}
               disabled={loading || !aiInput.trim()}
-              className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold"
+              className="w-full px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]"
             >
-              {loading ? <Loader size={20} className="animate-spin" /> : <Sparkles size={20} />}
-              Create Activities from Description
+              {loading ? (
+                <Loader size={24} className="animate-spin" />
+              ) : (
+                <>
+                  <Sparkles size={24} className="animate-pulse" />
+                  Create Activities from Description
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -456,11 +539,31 @@ export default function ScheduleGenerator() {
 
       {/* Activity Review Modal */}
       {showReviewModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-2xl font-bold text-gray-900">Review Your Activities</h2>
-              <p className="text-gray-600 mt-1">Please confirm or edit the details for each activity</p>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-slideUp">
+            {/* Header */}
+            <div className="p-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold flex items-center gap-2">
+                    <CheckCircle size={28} />
+                    Review Your Activities
+                  </h2>
+                  <p className="text-indigo-100 mt-1">
+                    {parsedActivities.length} {parsedActivities.length === 1 ? 'activity' : 'activities'} parsed • Confirm or edit before saving
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowReviewModal(false)
+                    setParsedActivities([])
+                    setEditingActivity(null)
+                  }}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
@@ -469,12 +572,12 @@ export default function ScheduleGenerator() {
                   <p className="text-gray-500 mb-4">No activities yet. Add one below!</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {parsedActivities.map((activity) => (
-                    <div key={activity.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                <div className="space-y-3">
+                  {parsedActivities.map((activity, index) => (
+                    <div key={activity.id} className="border-2 border-gray-200 rounded-xl p-5 bg-white hover:border-indigo-300 transition-all shadow-sm hover:shadow-md" style={{animationDelay: `${index * 50}ms`}}>
                       {editingActivity?.id === activity.id ? (
                         // Editing Mode
-                        <div className="space-y-3">
+                        <div className="space-y-4 bg-indigo-50/50 p-4 rounded-lg">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Activity Name</label>
                             <input
@@ -554,35 +657,64 @@ export default function ScheduleGenerator() {
                         </div>
                       ) : (
                         // Display Mode
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
-                            <h3 className="font-bold text-lg text-gray-900">{activity.title || 'Untitled Activity'}</h3>
-                            <div className="mt-2 space-y-1 text-sm text-gray-600">
-                              <div className="flex items-center gap-2">
-                                <Calendar size={16} />
-                                <span className="font-medium">{DAYS[activity.day_of_week]}</span>
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                                activity.category === 'fitness' ? 'bg-green-100 text-green-600' :
+                                activity.category === 'work' ? 'bg-blue-100 text-blue-600' :
+                                activity.category === 'study' ? 'bg-purple-100 text-purple-600' :
+                                activity.category === 'extracurricular' ? 'bg-orange-100 text-orange-600' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>
+                                {activity.category === 'fitness' ? '💪' :
+                                 activity.category === 'work' ? '💼' :
+                                 activity.category === 'study' ? '📚' :
+                                 activity.category === 'extracurricular' ? '🎯' :
+                                 '📅'}
+                              </div>
+                              <div>
+                                <h3 className="font-bold text-xl text-gray-900">{activity.title || 'Untitled Activity'}</h3>
+                                <span className="text-xs font-medium px-2 py-1 rounded-full capitalize inline-block mt-1" style={{
+                                  background: activity.category === 'fitness' ? '#dcfce7' :
+                                             activity.category === 'work' ? '#dbeafe' :
+                                             activity.category === 'study' ? '#e9d5ff' :
+                                             activity.category === 'extracurricular' ? '#fed7aa' :
+                                             '#e5e7eb',
+                                  color: activity.category === 'fitness' ? '#166534' :
+                                        activity.category === 'work' ? '#1e40af' :
+                                        activity.category === 'study' ? '#6b21a8' :
+                                        activity.category === 'extracurricular' ? '#9a3412' :
+                                        '#374151'
+                                }}>
+                                  {activity.category}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 ml-13">
+                              <div className="flex items-center gap-2 text-gray-700">
+                                <Calendar size={16} className="text-indigo-600" />
+                                <span className="font-semibold">{DAYS[activity.day_of_week]}</span>
                               </div>
                               {activity.start_time && activity.end_time && (
-                                <div>
-                                  <strong>Time:</strong> {activity.start_time} - {activity.end_time}
+                                <div className="flex items-center gap-2 text-gray-700">
+                                  <Clock size={16} className="text-indigo-600" />
+                                  <span className="font-semibold">{activity.start_time} - {activity.end_time}</span>
                                 </div>
                               )}
-                              <div>
-                                <strong>Category:</strong> <span className="capitalize">{activity.category}</span>
-                              </div>
                             </div>
                           </div>
                           <div className="flex gap-2">
                             <button
                               onClick={() => handleEditActivity(activity)}
-                              className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                              className="p-2.5 text-indigo-600 hover:bg-indigo-50 rounded-lg border-2 border-indigo-200 hover:border-indigo-300 transition-all"
                               title="Edit activity"
                             >
                               <Edit2 size={18} />
                             </button>
                             <button
                               onClick={() => handleDeleteActivity(activity.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                              className="p-2.5 text-red-600 hover:bg-red-50 rounded-lg border-2 border-red-200 hover:border-red-300 transition-all"
                               title="Delete activity"
                             >
                               <Trash2 size={18} />
@@ -597,31 +729,41 @@ export default function ScheduleGenerator() {
 
               <button
                 onClick={handleAddNewActivity}
-                className="w-full mt-4 px-4 py-3 border-2 border-dashed border-gray-300 text-gray-600 rounded-lg hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 flex items-center justify-center gap-2"
+                className="w-full mt-6 px-6 py-4 border-3 border-dashed border-indigo-300 text-indigo-600 rounded-xl hover:border-indigo-500 hover:bg-indigo-50 flex items-center justify-center gap-3 font-semibold text-lg transition-all hover:scale-[1.02]"
               >
-                <Plus size={20} />
-                Add Another Activity
+                <Plus size={24} className="animate-pulse" />
+                Add Another Activity Manually
               </button>
             </div>
 
-            <div className="p-6 border-t border-gray-200 bg-gray-50 flex gap-3">
+            {/* Footer */}
+            <div className="p-6 bg-gradient-to-r from-gray-50 to-gray-100 flex gap-3 border-t-2 border-gray-200">
               <button
                 onClick={() => {
                   setShowReviewModal(false)
                   setParsedActivities([])
                   setEditingActivity(null)
                 }}
-                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                className="px-8 py-3 bg-white border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-all"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveActivities}
                 disabled={loading || parsedActivities.length === 0}
-                className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold"
+                className="flex-1 px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-bold text-lg shadow-lg hover:shadow-xl transition-all"
               >
-                {loading ? <Loader size={20} className="animate-spin" /> : <CheckCircle size={20} />}
-                Save {parsedActivities.length} {parsedActivities.length === 1 ? 'Activity' : 'Activities'}
+                {loading ? (
+                  <>
+                    <Loader size={24} className="animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle size={24} />
+                    Save {parsedActivities.length} {parsedActivities.length === 1 ? 'Activity' : 'Activities'}
+                  </>
+                )}
               </button>
             </div>
           </div>
