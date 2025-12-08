@@ -13,11 +13,17 @@ export default function Schedule() {
   const [courses, setCourses] = useState([])
   const [showModal, setShowModal] = useState(false)
   const [formData, setFormData] = useState({
+    type: 'class', // 'class' or 'activity'
     course_id: '',
+    activity_name: '',
     selectedDays: [],
     start_time: '',
     end_time: '',
     location: ''
+  })
+  const [timeInput, setTimeInput] = useState({
+    start: '',
+    end: ''
   })
 
   useEffect(() => {
@@ -46,26 +52,94 @@ export default function Schedule() {
     setCalendarEvents(filteredEvents)
   }
 
+  const parseTimeInput = (input) => {
+    if (!input) return ''
+
+    // Remove extra spaces and convert to lowercase
+    input = input.trim().toLowerCase().replace(/\s+/g, ' ')
+
+    // Try to match various formats
+    let match
+
+    // Format: "9:30 am" or "9:30am" or "9am" or "9 am"
+    match = input.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/)
+    if (match) {
+      let hours = parseInt(match[1])
+      const minutes = match[2] || '00'
+      const period = match[3]
+
+      if (period === 'pm' && hours !== 12) hours += 12
+      if (period === 'am' && hours === 12) hours = 0
+
+      return `${String(hours).padStart(2, '0')}:${minutes}`
+    }
+
+    // Format: "930" or "0930"
+    match = input.match(/^(\d{3,4})$/)
+    if (match) {
+      const time = match[1].padStart(4, '0')
+      return `${time.slice(0, 2)}:${time.slice(2)}`
+    }
+
+    // Already in HH:MM format
+    if (/^\d{1,2}:\d{2}$/.test(input)) {
+      const [h, m] = input.split(':')
+      return `${h.padStart(2, '0')}:${m}`
+    }
+
+    return input
+  }
+
+  const handleTimeBlur = (field) => {
+    const parsed = parseTimeInput(timeInput[field])
+    if (parsed) {
+      setFormData(prev => ({
+        ...prev,
+        [field === 'start' ? 'start_time' : 'end_time']: parsed
+      }))
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    // Create schedule entry for each selected day
-    for (const day of formData.selectedDays) {
-      await fetch('/api/schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          course_id: formData.course_id,
-          day_of_week: day,
-          start_time: formData.start_time,
-          end_time: formData.end_time,
-          location: formData.location
+    if (formData.type === 'class') {
+      // Create class schedule entry for each selected day
+      for (const day of formData.selectedDays) {
+        await fetch('/api/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            course_id: formData.course_id,
+            day_of_week: day,
+            start_time: formData.start_time,
+            end_time: formData.end_time,
+            location: formData.location
+          })
         })
-      })
+      }
+    } else {
+      // Create activity for each selected day
+      for (const day of formData.selectedDays) {
+        await fetch('/api/activities', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: formData.activity_name,
+            day_of_week: day,
+            start_time: formData.start_time,
+            end_time: formData.end_time,
+            location: formData.location,
+            category: 'personal',
+            recurrence: 'weekly'
+          })
+        })
+      }
     }
 
     setShowModal(false)
-    setFormData({ course_id: '', selectedDays: [], start_time: '', end_time: '', location: '' })
+    setFormData({ type: 'class', course_id: '', activity_name: '', selectedDays: [], start_time: '', end_time: '', location: '' })
+    setTimeInput({ start: '', end: '' })
     fetchData()
   }
 
@@ -203,9 +277,19 @@ export default function Schedule() {
           <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               {/* Modal Header */}
-              <div className="sticky top-0 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-6 rounded-t-2xl">
-                <h2 className="text-2xl font-bold">Add Class to Schedule</h2>
-                <p className="text-indigo-100 text-sm mt-1">Set up your recurring class schedule</p>
+              <div className={`sticky top-0 ${
+                formData.type === 'class'
+                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600'
+                  : 'bg-gradient-to-r from-green-600 to-teal-600'
+              } text-white px-8 py-6 rounded-t-2xl transition-all`}>
+                <h2 className="text-2xl font-bold">
+                  {formData.type === 'class' ? '📚 Add Class' : '⚽ Add Activity'}
+                </h2>
+                <p className="text-indigo-100 text-sm mt-1">
+                  {formData.type === 'class'
+                    ? 'Set up your recurring class schedule'
+                    : 'Schedule a recurring personal activity'}
+                </p>
               </div>
 
               <form onSubmit={handleSubmit} className="p-8 space-y-6">
@@ -340,7 +424,8 @@ export default function Schedule() {
                     type="button"
                     onClick={() => {
                       setShowModal(false)
-                      setFormData({ course_id: '', selectedDays: [], start_time: '', end_time: '', location: '' })
+                      setFormData({ type: 'class', course_id: '', activity_name: '', selectedDays: [], start_time: '', end_time: '', location: '' })
+                      setTimeInput({ start: '', end: '' })
                     }}
                     className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold transition-all"
                   >
@@ -524,23 +609,73 @@ export default function Schedule() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-8 space-y-6">
-              {/* Course Selection */}
+              {/* Type Selection */}
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Select Course
+                <label className="block text-sm font-semibold text-gray-900 mb-3">
+                  What are you adding?
                 </label>
-                <select
-                  value={formData.course_id}
-                  onChange={(e) => setFormData({ ...formData, course_id: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  required
-                >
-                  <option value="">Choose a course...</option>
-                  {courses.map(course => (
-                    <option key={course.id} value={course.id}>{course.name}</option>
-                  ))}
-                </select>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, type: 'class' })}
+                    className={`p-4 rounded-xl font-semibold transition-all ${
+                      formData.type === 'class'
+                        ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    📚 Class
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, type: 'activity' })}
+                    className={`p-4 rounded-xl font-semibold transition-all ${
+                      formData.type === 'activity'
+                        ? 'bg-gradient-to-br from-green-500 to-teal-600 text-white shadow-lg'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    ⚽ Activity
+                  </button>
+                </div>
               </div>
+
+              {/* Course Selection (for classes only) */}
+              {formData.type === 'class' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Select Course
+                  </label>
+                  <select
+                    value={formData.course_id}
+                    onChange={(e) => setFormData({ ...formData, course_id: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    required
+                  >
+                    <option value="">Choose a course...</option>
+                    {courses.map(course => (
+                      <option key={course.id} value={course.id}>{course.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Activity Name (for activities only) */}
+              {formData.type === 'activity' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Activity Name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.activity_name}
+                    onChange={(e) => setFormData({ ...formData, activity_name: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                    placeholder="e.g., Soccer Practice, Gym, Piano Lessons"
+                    required
+                  />
+                </div>
+              )}
 
               {/* Quick Day Patterns */}
               <div>
@@ -600,32 +735,47 @@ export default function Schedule() {
                 )}
               </div>
 
-              {/* Time Selection */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
-                    Start Time
-                  </label>
-                  <input
-                    type="time"
-                    value={formData.start_time}
-                    onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                    required
-                  />
+              {/* Time Selection - Smart Input */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  Time
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Start Time</label>
+                    <input
+                      type="text"
+                      value={timeInput.start || (formData.start_time ? formData.start_time : '')}
+                      onChange={(e) => setTimeInput({ ...timeInput, start: e.target.value })}
+                      onBlur={() => handleTimeBlur('start')}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-mono"
+                      placeholder="9am or 9:30am"
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Try: "9am", "2:30pm", "14:30"
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">End Time</label>
+                    <input
+                      type="text"
+                      value={timeInput.end || (formData.end_time ? formData.end_time : '')}
+                      onChange={(e) => setTimeInput({ ...timeInput, end: e.target.value })}
+                      onBlur={() => handleTimeBlur('end')}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-mono"
+                      placeholder="10am or 10:30am"
+                      required
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
-                    End Time
-                  </label>
-                  <input
-                    type="time"
-                    value={formData.end_time}
-                    onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                    required
-                  />
-                </div>
+                {formData.start_time && formData.end_time && (
+                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm text-green-800">
+                      ✓ {formData.start_time} - {formData.end_time}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Location */}
@@ -655,7 +805,8 @@ export default function Schedule() {
                   type="button"
                   onClick={() => {
                     setShowModal(false)
-                    setFormData({ course_id: '', selectedDays: [], start_time: '', end_time: '', location: '' })
+                    setFormData({ type: 'class', course_id: '', activity_name: '', selectedDays: [], start_time: '', end_time: '', location: '' })
+                    setTimeInput({ start: '', end: '' })
                   }}
                   className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold transition-all"
                 >
